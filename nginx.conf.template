@@ -17,8 +17,8 @@ http {
   server {
     listen 8080;
 
-    # ✅ DNS resolvers for Render (no Docker DNS)
-    resolver 8.8.8.8 1.1.1.1 valid=30s ipv6=off;
+    # ✅ Use Render's system DNS resolvers for internal service resolution
+    resolver 169.254.20.10 10.215.0.10 valid=30s ipv6=off;
     resolver_timeout 5s;
 
     # Health check endpoint
