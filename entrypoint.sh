@@ -11,7 +11,9 @@ echo "=== Testing DNS resolution ==="
 # Extract hostname from UPSTREAM_URL for testing
 HOSTNAME=$(echo $UPSTREAM_URL | sed 's|http://||' | sed 's|:.*||')
 echo "Attempting to resolve: $HOSTNAME"
-nslookup $HOSTNAME || echo "nslookup failed"
+# Try different DNS resolution methods
+getent hosts $HOSTNAME || echo "getent hosts failed"
+ping -c 1 $HOSTNAME || echo "ping failed"
 echo "=== End Debug Info ==="
 
 # Substitute env into nginx.conf from template
