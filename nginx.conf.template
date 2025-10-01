@@ -42,11 +42,26 @@ http {
     location = /theme.css           { root /usr/share/nginx/html; add_header Content-Type text/css; }
     
     # Override Open WebUI's default icons with custom Aurora icons
-    location = /static/favicon.png { return 301 /icons/favicon.ico; }
-    location = /favicon.ico { root /usr/share/nginx/html/icons; }
-    location = /static/logo.png { return 301 /icons/icon-192.png; }
-    location = /static/splash.png { return 301 /icons/icon-512.png; }
-    location = /static/splash-dark.png { return 301 /icons/icon-512.png; }
+    location = /static/favicon.png { 
+      alias /usr/share/nginx/html/icons/favicon.ico;
+      add_header Content-Type image/x-icon;
+    }
+    location = /favicon.ico { 
+      alias /usr/share/nginx/html/icons/favicon.ico;
+      add_header Content-Type image/x-icon;
+    }
+    location = /static/logo.png { 
+      alias /usr/share/nginx/html/icons/icon-192.png;
+      add_header Content-Type image/png;
+    }
+    location = /static/splash.png { 
+      alias /usr/share/nginx/html/icons/icon-512.png;
+      add_header Content-Type image/png;
+    }
+    location = /static/splash-dark.png { 
+      alias /usr/share/nginx/html/icons/icon-512.png;
+      add_header Content-Type image/png;
+    }
 
     # --- Proxy everything else to the private Open WebUI ---
     # UPSTREAM_URL will be env-injected (e.g., http://<internal-host>:8080)
