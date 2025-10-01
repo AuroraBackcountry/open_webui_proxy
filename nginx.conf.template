@@ -40,6 +40,7 @@ http {
     location = /sw.js               { root /usr/share/nginx/html; add_header Service-Worker-Allowed "/"; }
     location /icons/                { root /usr/share/nginx/html; }
     location = /theme.css           { root /usr/share/nginx/html; add_header Content-Type text/css; }
+    location = /guideops-branding.js { root /usr/share/nginx/html; add_header Content-Type application/javascript; }
     
     # Override Open WebUI's default icons with custom Aurora icons
     location = /static/favicon.png { 
@@ -67,9 +68,9 @@ http {
     # UPSTREAM_URL will be env-injected (e.g., http://<internal-host>:8080)
     set $upstream ${UPSTREAM_URL};
 
-    # Inject theme.css link into every HTML page
+    # Inject theme.css and GuideOps branding script into every HTML page
     sub_filter_once off;
-    sub_filter '</head>' '<link rel="stylesheet" href="/theme.css"></head>';
+    sub_filter '</head>' '<link rel="stylesheet" href="/theme.css"><script src="/guideops-branding.js"></script></head>';
 
     location / {
       # Enhanced proxy settings for Render

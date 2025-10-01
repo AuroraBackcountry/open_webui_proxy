@@ -9,3 +9,19 @@ button, .btn-primary { background: var(--aurora-accent); border-color: var(--aur
 @supports (padding: max(0px)) {
   body { padding-top: env(safe-area-inset-top); }
 }
+
+/* GuideOps Branding Customizations */
+/* JavaScript handles text replacement - CSS provides styling support */
+.guideops-branding {
+  color: var(--aurora-accent);
+}
+
+/* Ensure proper styling for auth forms */
+.auth-form, .signin-form {
+  text-align: center;
+}
+
+.auth-form h1, .signin-form h1 {
+  color: inherit;
+  margin-bottom: 1rem;
+}
