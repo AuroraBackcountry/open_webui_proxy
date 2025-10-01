@@ -10,10 +10,22 @@ cat /etc/resolv.conf
 echo "=== Testing DNS resolution ==="
 # Extract hostname from UPSTREAM_URL for testing
 HOSTNAME=$(echo $UPSTREAM_URL | sed 's|http://||' | sed 's|:.*||')
+PORT=$(echo $UPSTREAM_URL | sed 's|.*:||')
 echo "Attempting to resolve: $HOSTNAME"
 # Try different DNS resolution methods
 getent hosts $HOSTNAME || echo "getent hosts failed"
 ping -c 1 $HOSTNAME || echo "ping failed"
+
+# Get the resolved IP address
+RESOLVED_IP=$(getent hosts $HOSTNAME | awk '{print $1}' | head -1)
+if [ -n "$RESOLVED_IP" ]; then
+    echo "Resolved $HOSTNAME to IP: $RESOLVED_IP"
+    # Use the resolved IP instead of hostname
+    export UPSTREAM_URL="http://$RESOLVED_IP:$PORT"
+    echo "Updated UPSTREAM_URL to: $UPSTREAM_URL"
+else
+    echo "Failed to resolve $HOSTNAME, keeping original URL"
+fi
 echo "=== End Debug Info ==="
 
 # Substitute env into nginx.conf from template

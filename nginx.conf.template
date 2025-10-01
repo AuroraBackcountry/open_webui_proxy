@@ -17,7 +17,7 @@ http {
   server {
     listen 8080;
 
-    # ✅ Use Render's system DNS resolvers for internal service resolution
+    # ✅ DNS resolvers (may not be needed if using IP addresses)
     resolver 169.254.20.10 10.215.0.10 valid=30s ipv6=off;
     resolver_timeout 5s;
 
