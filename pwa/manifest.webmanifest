@@ -1,6 +1,6 @@
 {
-  "name": "Aurora Backcountry WebUI",
-  "short_name": "AuroraUI",
+  "name": "GuideOps",
+  "short_name": "GuideOps",
   "description": "Field-ready LLM tools for Aurora guides.",
   "start_url": "/",
   "scope": "/",
