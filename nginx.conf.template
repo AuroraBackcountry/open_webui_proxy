@@ -90,6 +90,10 @@ http {
       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
       proxy_set_header X-Forwarded-Proto $scheme;
       proxy_set_header X-Forwarded-Host $host;
+      proxy_set_header X-Forwarded-Port $server_port;
+      
+      # Help OpenWebUI understand it's behind HTTPS proxy
+      proxy_set_header X-Forwarded-Ssl on;
       proxy_http_version 1.1;
       proxy_set_header Connection "";
       
