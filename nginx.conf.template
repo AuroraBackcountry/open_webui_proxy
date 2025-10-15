@@ -66,13 +66,6 @@ http {
 
     # --- TTS proxy configuration will be conditionally inserted here ---
 
-    # Ensure the manifest is always served via the same HTTPS origin
-    location = /manifest.webmanifest {
-      set $backend $upstream;
-      proxy_pass $backend;
-      add_header Cache-Control "public, max-age=3600";
-    }
-
     # --- Proxy everything else to the private Open WebUI ---
     # UPSTREAM_URL will be env-injected (e.g., http://<internal-host>:8080)
     set $upstream ${UPSTREAM_URL};
