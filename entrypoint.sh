@@ -28,8 +28,18 @@ else
 fi
 echo "=== End Debug Info ==="
 
+# TTS proxy configuration (optional)
+if [ -n "$TTS_PROXY_ORIGIN" ]; then
+    echo "TTS proxy enabled: $TTS_PROXY_ORIGIN"
+    if [ -z "$TTS_SHARED_TOKEN" ]; then
+        echo "WARNING: TTS_SHARED_TOKEN not set - TTS proxy will be unprotected"
+    fi
+else
+    echo "TTS proxy not configured (TTS_PROXY_ORIGIN not set)"
+fi
+
 # Substitute env into nginx.conf from template
-envsubst '${UPSTREAM_URL}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+envsubst '${UPSTREAM_URL} ${TTS_PROXY_ORIGIN} ${TTS_SHARED_TOKEN}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
 
 # Show generated config for debugging
 echo "=== Generated nginx.conf ==="
