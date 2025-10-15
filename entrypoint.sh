@@ -76,7 +76,7 @@ else
 fi
 
 # Substitute remaining env vars and create final config
-envsubst '${UPSTREAM_URL}' < /tmp/nginx.conf.temp > /etc/nginx/nginx.conf
+envsubst '${UPSTREAM_URL} ${TTS_PROXY_ORIGIN} ${TTS_SHARED_TOKEN}' < /tmp/nginx.conf.temp > /etc/nginx/nginx.conf
 rm -f /tmp/nginx.conf.temp
 
 # Show generated config for debugging
