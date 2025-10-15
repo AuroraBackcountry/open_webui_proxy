@@ -40,21 +40,30 @@ if [ -n "$TTS_PROXY_ORIGIN" ]; then
     
     # Create TTS configuration block
     cat > /tmp/tts_config.conf << EOF
-    # --- Stream ElevenLabs audio with no buffering ---
+    # --- STREAMING TTS: forward /tts/* to the TTS microservice ---
     location /tts/ {
+        # MUST be a full URL and include a trailing slash
         proxy_pass              ${TTS_PROXY_ORIGIN}/;
+
         proxy_http_version      1.1;
 
-        # auth header to your TTS service (matches TTS_SHARED_TOKEN)
-        proxy_set_header        X-TTS-Token ${TTS_SHARED_TOKEN};
+        # Ensure upstream Host header matches the Render TTS service hostname
+        proxy_set_header        Host \$proxy_host;
 
-        # CRITICAL for streaming
+        # Ensure TLS SNI uses the upstream host
+        proxy_ssl_server_name   on;
+
+        # Simple auth passthrough (quotes handle empty var safely)
+        proxy_set_header        X-TTS-Token "${TTS_SHARED_TOKEN}";
+
+        # Streaming essentials (no buffering)
         proxy_buffering         off;
         proxy_request_buffering off;
         proxy_read_timeout      300s;
         add_header              X-Accel-Buffering no;
 
-        gzip                    off;   # don't gzip audio
+        # Don't gzip audio
+        gzip                    off;
     }
 EOF
     
