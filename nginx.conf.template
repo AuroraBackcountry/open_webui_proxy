@@ -66,13 +66,20 @@ http {
 
     # --- TTS proxy configuration will be conditionally inserted here ---
 
+    # Ensure the manifest is always served via the same HTTPS origin
+    location = /manifest.webmanifest {
+      set $backend $upstream;
+      proxy_pass $backend;
+      add_header Cache-Control "public, max-age=3600";
+    }
+
     # --- Proxy everything else to the private Open WebUI ---
     # UPSTREAM_URL will be env-injected (e.g., http://<internal-host>:8080)
     set $upstream ${UPSTREAM_URL};
 
     # Inject theme.css and GuideOps branding script into every HTML page
     sub_filter_once off;
-    sub_filter '</head>' '<link rel="stylesheet" href="/theme.css"><script src="/guideops-branding.js"></script></head>';
+    sub_filter '</head>' '<link rel="stylesheet" href="/theme.css"><script src="/guideops-branding.js" defer></script></head>';
 
     # --- Proxy to private Open WebUI ---
     location / {
@@ -88,7 +95,7 @@ http {
       proxy_set_header X-Real-IP         $remote_addr;
       proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
 
-      # Tell upstream the ORIGINAL client scheme/host/port are HTTPS
+      # CRITICAL: tell upstream the external scheme/port are HTTPS/443
       proxy_set_header X-Forwarded-Proto https;
       proxy_set_header X-Forwarded-Host  $host;
       proxy_set_header X-Forwarded-Port  443;
@@ -97,15 +104,15 @@ http {
       proxy_http_version 1.1;
       proxy_set_header Connection "";
 
-      # WebSocket
+      # WebSocket upgrades
       proxy_set_header Upgrade            $http_upgrade;
       proxy_set_header Connection         $connection_upgrade;
 
-      # Avoid http://:8080 showing up in redirects/links
-      proxy_redirect     off;
-      port_in_redirect   off;
+      # avoid http://:8080 in redirects
+      proxy_redirect   off;
+      port_in_redirect off;
 
-      # (Optional safety net) auto-upgrade any stray http links
+      # safety net: auto-upgrade stray http links in HTML
       add_header Content-Security-Policy "upgrade-insecure-requests" always;
     }
   }
