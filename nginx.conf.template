@@ -1,101 +1,97 @@
 events {}
+
 http {
-  # Add MIME types to prevent warnings
+  # MIME types (prevents warnings)
   include /etc/nginx/mime.types;
   default_type application/octet-stream;
 
-  # Enable error logging for debugging
-  error_log /var/log/nginx/error.log debug;
+  # Logs
+  error_log  /var/log/nginx/error.log debug;
   access_log /var/log/nginx/access.log;
 
   # WebSocket upgrade support
   map $http_upgrade $connection_upgrade {
     default upgrade;
-    '' close;
+    ''      close;
   }
 
   server {
     listen 8080;
 
-    # ✅ DNS resolvers (may not be needed if using IP addresses)
+    # DNS resolvers for upstreams (safe defaults on Render)
     resolver 169.254.20.10 10.215.0.10 valid=30s ipv6=off;
     resolver_timeout 5s;
 
-    # Health check endpoint
+    # --- Health / Debug ---
     location = /health {
       access_log off;
       return 200 "healthy\n";
       add_header Content-Type text/plain;
     }
 
-    # Debug endpoint to check upstream URL
     location = /debug {
       return 200 "Upstream: ${UPSTREAM_URL}\n";
       add_header Content-Type text/plain;
     }
 
-    # --- PWA assets from this container ---
+    # --- PWA / Branding assets served from this container ---
     location = /manifest.webmanifest { root /usr/share/nginx/html; add_header Content-Type application/manifest+json; }
-    location = /manifest.json { return 301 /manifest.webmanifest; }
+    location = /manifest.json       { return 301 /manifest.webmanifest; }
     location = /sw.js               { root /usr/share/nginx/html; add_header Service-Worker-Allowed "/"; }
     location /icons/                { root /usr/share/nginx/html; }
     location = /theme.css           { root /usr/share/nginx/html; add_header Content-Type text/css; }
     location = /guideops-branding.js { root /usr/share/nginx/html; add_header Content-Type application/javascript; }
-    
-    # Override Open WebUI's default icons with custom Aurora icons
-    location = /static/favicon.png { 
-      alias /usr/share/nginx/html/icons/favicon.ico;
-      add_header Content-Type image/x-icon;
-    }
-    location = /favicon.ico { 
-      alias /usr/share/nginx/html/icons/favicon.ico;
-      add_header Content-Type image/x-icon;
-    }
-    location = /static/logo.png { 
-      alias /usr/share/nginx/html/icons/icon-192.png;
-      add_header Content-Type image/png;
-    }
-    location = /static/splash.png { 
-      alias /usr/share/nginx/html/icons/icon-512.png;
-      add_header Content-Type image/png;
-    }
-    location = /static/splash-dark.png { 
-      alias /usr/share/nginx/html/icons/icon-512.png;
-      add_header Content-Type image/png;
-    }
 
-    # --- TTS proxy configuration will be conditionally inserted here ---
+    # Override some Open WebUI icons with Aurora versions
+    location = /static/favicon.png  { alias /usr/share/nginx/html/icons/favicon.ico; add_header Content-Type image/x-icon; }
+    location = /favicon.ico         { alias /usr/share/nginx/html/icons/favicon.ico; add_header Content-Type image/x-icon; }
+    location = /static/logo.png     { alias /usr/share/nginx/html/icons/icon-192.png; add_header Content-Type image/png; }
+    location = /static/splash.png   { alias /usr/share/nginx/html/icons/icon-512.png; add_header Content-Type image/png; }
+    location = /static/splash-dark.png { alias /usr/share/nginx/html/icons/icon-512.png; add_header Content-Type image/png; }
 
-    # --- Open WebUI backend -> Aurora TTS service (OpenAI-compatible) ---
+    # ===============================
+    #  Open WebUI -> Aurora TTS proxy
+    #  (OpenAI-compatible endpoint)
+    # ===============================
     location = /api/v1/audio/speech {
-        proxy_pass                  https://aurora-tts-service.onrender.com/v1/audio/speech;
+      # Upstream service (no trailing slash in env)
+      # TTS_PROXY_ORIGIN: e.g. https://aurora-tts-service.onrender.com
+      proxy_pass                  ${TTS_PROXY_ORIGIN}/v1/audio/speech;
 
-        # auth to your TTS service
-        proxy_set_header            X-TTS-Token bc7b0f9ca3e5f78cf2bdc2fbbfef226b;
+      # --- HTTPS upstream fixes (SNI/Host) ---
+      proxy_ssl_server_name       on;         # enable SNI for TLS
+      # proxy_ssl_name            aurora-tts-service.onrender.com; # optional explicit SNI if needed
+      proxy_set_header            Host $proxy_host;  # send upstream host, not client host
 
-        # CRITICAL for streaming
-        proxy_http_version          1.1;
-        proxy_buffering             off;
-        proxy_request_buffering     off;
-        proxy_read_timeout          300s;
-        add_header                  X-Accel-Buffering no;
+      # --- Auth to your TTS service ---
+      proxy_set_header            X-TTS-Token ${TTS_SHARED_TOKEN};
 
-        # standard headers
-        proxy_set_header            Host $host;
-        proxy_set_header            X-Real-IP $remote_addr;
-        proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header            X-Forwarded-Proto $scheme;
+      # --- Streaming (CRITICAL) ---
+      proxy_http_version          1.1;
+      proxy_buffering             off;
+      proxy_request_buffering     off;
+      proxy_read_timeout          300s;
+      add_header                  X-Accel-Buffering no;
+
+      # --- Forwarded headers ---
+      proxy_set_header            X-Real-IP        $remote_addr;
+      proxy_set_header            X-Forwarded-For  $proxy_add_x_forwarded_for;
+      proxy_set_header            X-Forwarded-Proto https;
+      proxy_set_header            X-Forwarded-Port  443;
+      proxy_set_header            X-Forwarded-Host  $host;
+
+      proxy_redirect              off;
+      absolute_redirect           off;
     }
 
     # --- Proxy everything else to the private Open WebUI ---
-    # UPSTREAM_URL will be env-injected (e.g., http://<internal-host>:8080)
+    # UPSTREAM_URL will be env-injected (e.g., http://webui-xxxx:10000)
     set $upstream ${UPSTREAM_URL};
 
-    # Inject theme.css and GuideOps branding script into every HTML page
+    # Inject branding into every HTML page
     sub_filter_once off;
     sub_filter '</head>' '<link rel="stylesheet" href="/theme.css"><script src="/guideops-branding.js" defer></script></head>';
 
-    # --- Proxy to private Open WebUI ---
     location / {
       proxy_connect_timeout 30s;
       proxy_read_timeout    120s;
@@ -109,7 +105,7 @@ http {
       proxy_set_header X-Real-IP         $remote_addr;
       proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
 
-      # CRITICAL: tell upstream the external scheme/port are HTTPS/443
+      # Tell upstream we’re HTTPS externally (avoid http://:8080 redirects)
       proxy_set_header X-Forwarded-Proto https;
       proxy_set_header X-Forwarded-Host  $host;
       proxy_set_header X-Forwarded-Port  443;
@@ -122,11 +118,11 @@ http {
       proxy_set_header Upgrade            $http_upgrade;
       proxy_set_header Connection         $connection_upgrade;
 
-      # avoid http://:8080 in redirects
+      # avoid leaking :8080 in redirects
       proxy_redirect   off;
       port_in_redirect off;
 
-      # safety net: auto-upgrade stray http links in HTML
+      # Safety net: auto-upgrade stray http links referenced in HTML
       add_header Content-Security-Policy "upgrade-insecure-requests" always;
     }
   }
