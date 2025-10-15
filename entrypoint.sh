@@ -28,18 +28,47 @@ else
 fi
 echo "=== End Debug Info ==="
 
+# Generate nginx.conf with conditional TTS configuration
+cp /etc/nginx/nginx.conf.template /tmp/nginx.conf.temp
+
 # TTS proxy configuration (optional)
 if [ -n "$TTS_PROXY_ORIGIN" ]; then
     echo "TTS proxy enabled: $TTS_PROXY_ORIGIN"
     if [ -z "$TTS_SHARED_TOKEN" ]; then
         echo "WARNING: TTS_SHARED_TOKEN not set - TTS proxy will be unprotected"
     fi
+    
+    # Create TTS configuration block
+    cat > /tmp/tts_config.conf << EOF
+    # --- Stream ElevenLabs audio with no buffering ---
+    location /tts/ {
+        proxy_pass              ${TTS_PROXY_ORIGIN}/;
+        proxy_http_version      1.1;
+
+        # auth header to your TTS service (matches TTS_SHARED_TOKEN)
+        proxy_set_header        X-TTS-Token ${TTS_SHARED_TOKEN};
+
+        # CRITICAL for streaming
+        proxy_buffering         off;
+        proxy_request_buffering off;
+        proxy_read_timeout      300s;
+        add_header              X-Accel-Buffering no;
+
+        gzip                    off;   # don't gzip audio
+    }
+EOF
+    
+    # Insert TTS config after the comment line
+    sed '/# --- TTS proxy configuration will be conditionally inserted here ---/r /tmp/tts_config.conf' /tmp/nginx.conf.temp > /tmp/nginx.conf.with_tts
+    mv /tmp/nginx.conf.with_tts /tmp/nginx.conf.temp
+    rm -f /tmp/tts_config.conf
 else
     echo "TTS proxy not configured (TTS_PROXY_ORIGIN not set)"
 fi
 
-# Substitute env into nginx.conf from template
-envsubst '${UPSTREAM_URL} ${TTS_PROXY_ORIGIN} ${TTS_SHARED_TOKEN}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+# Substitute remaining env vars and create final config
+envsubst '${UPSTREAM_URL}' < /tmp/nginx.conf.temp > /etc/nginx/nginx.conf
+rm -f /tmp/nginx.conf.temp
 
 # Show generated config for debugging
 echo "=== Generated nginx.conf ==="
