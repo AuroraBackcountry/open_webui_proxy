@@ -99,10 +99,14 @@ http {
       sub_filter_types text/html;
       sub_filter '</head>' '<link rel="stylesheet" href="/theme.css"><script src="/guideops-branding.js" defer></script></head>';
       
+      # CRITICAL: Disable buffering so sub_filter works on streamed content
+      proxy_buffering off;
+      
       # Decompress before sub_filter, recompress after
       gunzip on;
       gzip on;
-      gzip_types text/html text/css application/javascript;
+      gzip_types text/css application/javascript;
+      
       proxy_connect_timeout 30s;
       proxy_read_timeout    120s;
       proxy_send_timeout    120s;
