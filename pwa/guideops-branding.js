@@ -29,20 +29,46 @@
         });
     }
     
+    // Function to replace Open WebUI branding in sidebar and other locations
+    function replaceOpenWebUIText() {
+        // Target common locations where "Open WebUI" appears
+        const selectors = [
+            // Sidebar header/title
+            'div[class*="flex"] > div:not([class*="hidden"])',
+            'a[href="/"]',
+            'header',
+            '.sidebar',
+            // Any text node containing "Open WebUI"
+        ];
+        
+        // Check all text nodes for "Open WebUI"
+        const elements = document.querySelectorAll('*');
+        elements.forEach(el => {
+            // Only process elements with direct text content (not nested)
+            if (el.childNodes.length === 1 && 
+                el.childNodes[0].nodeType === Node.TEXT_NODE) {
+                const text = el.textContent.trim();
+                if (text === 'Open WebUI') {
+                    el.textContent = 'GuideOps';
+                    console.log('GuideOps: Replaced "Open WebUI" with "GuideOps" in', el.tagName);
+                }
+            }
+            
+            // Also check for elements that might contain "Open WebUI" with child nodes
+            el.childNodes.forEach(node => {
+                if (node.nodeType === Node.TEXT_NODE && 
+                    node.textContent.trim() === 'Open WebUI') {
+                    node.textContent = 'GuideOps';
+                    console.log('GuideOps: Replaced "Open WebUI" text node');
+                }
+            });
+        });
+    }
+    
     // Function to add GuideOps branding to various elements
     function addGuideOpsBranding() {
         replaceSignInText();
-        
-        // Also check for any "Open WebUI" text and optionally replace
-        const elements = document.querySelectorAll('*');
-        elements.forEach(el => {
-            if (el.childNodes.length === 1 && 
-                el.childNodes[0].nodeType === Node.TEXT_NODE && 
-                el.textContent.trim() === 'Open WebUI') {
-                el.textContent = 'GuideOps';
-                console.log('GuideOps: Replaced Open WebUI branding');
-            }
-        });
+        replaceOpenWebUIText();
     }
     
     // Run immediately
