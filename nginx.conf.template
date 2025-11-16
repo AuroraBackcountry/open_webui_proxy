@@ -44,8 +44,16 @@ http {
     location = /manifest.json       { return 301 /manifest.webmanifest; }
     location = /sw.js               { root /usr/share/nginx/html; add_header Service-Worker-Allowed "/"; }
     location /icons/                { root /usr/share/nginx/html; }
-    location = /theme.css           { root /usr/share/nginx/html; add_header Content-Type text/css; }
-    location = /guideops-branding.js { root /usr/share/nginx/html; add_header Content-Type application/javascript; }
+    location = /theme.css           { 
+      root /usr/share/nginx/html; 
+      add_header Content-Type text/css; 
+      add_header Cache-Control "no-cache, must-revalidate";
+    }
+    location = /guideops-branding.js { 
+      root /usr/share/nginx/html; 
+      add_header Content-Type application/javascript;
+      add_header Cache-Control "no-cache, must-revalidate";
+    }
 
     # Override some Open WebUI icons with Aurora versions
     location = /static/favicon.png  { alias /usr/share/nginx/html/icons/favicon.ico; add_header Content-Type image/x-icon; }
