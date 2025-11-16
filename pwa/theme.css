@@ -2,8 +2,9 @@
   --aurora-primary: #0f172a; /* deep slate */
   --aurora-accent:  #14b8a6; /* teal */
 }
-a { color: var(--aurora-accent); }
-button, .btn-primary { background: var(--aurora-accent); border-color: var(--aurora-accent); }
+
+/* Only apply accent color to specific elements, not everything */
+/* Remove overly broad button styling that affects all UI elements */
 
 /* PWA standalone safe-area on iOS */
 @supports (padding: max(0px)) {
