@@ -94,6 +94,9 @@ http {
     set $upstream ${UPSTREAM_URL};
 
     location / {
+      # CRITICAL: Tell upstream not to compress so we can use sub_filter
+      proxy_set_header Accept-Encoding "";
+      
       # Enable sub_filter for HTML content injection
       sub_filter_once off;
       sub_filter_types text/html;
@@ -102,10 +105,10 @@ http {
       # CRITICAL: Disable buffering so sub_filter works on streamed content
       proxy_buffering off;
       
-      # Decompress before sub_filter, recompress after
-      gunzip on;
+      # Re-enable compression for client (after sub_filter)
       gzip on;
-      gzip_types text/css application/javascript;
+      gzip_types text/html text/css application/javascript application/json;
+      gzip_proxied any;
       
       proxy_connect_timeout 30s;
       proxy_read_timeout    120s;
@@ -119,7 +122,7 @@ http {
       proxy_set_header X-Real-IP         $remote_addr;
       proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
 
-      # Tell upstream we’re HTTPS externally (avoid http://:8080 redirects)
+      # Tell upstream we're HTTPS externally (avoid http://:8080 redirects)
       proxy_set_header X-Forwarded-Proto https;
       proxy_set_header X-Forwarded-Host  $host;
       proxy_set_header X-Forwarded-Port  443;
