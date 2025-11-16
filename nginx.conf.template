@@ -115,7 +115,7 @@ http {
       
       # Re-enable compression for client (after sub_filter)
       gzip on;
-      gzip_types text/html text/css application/javascript application/json;
+      gzip_types text/css application/javascript application/json;
       gzip_proxied any;
       
       proxy_connect_timeout 30s;
