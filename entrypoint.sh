@@ -9,6 +9,8 @@ echo "DNS resolvers:"
 cat /etc/resolv.conf
 echo "=== Testing DNS resolution ==="
 # Extract hostname from UPSTREAM_URL for testing
+# Note: On Render, internal service discovery can be unreliable, so we resolve
+# hostnames to IPs at startup to avoid nginx resolver issues
 HOSTNAME=$(echo $UPSTREAM_URL | sed 's|http://||' | sed 's|:.*||')
 PORT=$(echo $UPSTREAM_URL | sed 's|.*:||')
 echo "Attempting to resolve: $HOSTNAME"
@@ -20,7 +22,7 @@ ping -c 1 $HOSTNAME || echo "ping failed"
 RESOLVED_IP=$(getent hosts $HOSTNAME | awk '{print $1}' | head -1)
 if [ -n "$RESOLVED_IP" ]; then
     echo "Resolved $HOSTNAME to IP: $RESOLVED_IP"
-    # Use the resolved IP instead of hostname
+    # Use the resolved IP instead of hostname for more reliable proxying
     export UPSTREAM_URL="http://$RESOLVED_IP:$PORT"
     echo "Updated UPSTREAM_URL to: $UPSTREAM_URL"
 else
@@ -38,32 +40,43 @@ if [ -n "$TTS_PROXY_ORIGIN" ]; then
         echo "WARNING: TTS_SHARED_TOKEN not set - TTS proxy will be unprotected"
     fi
     
-    # Create TTS configuration block
+    # Extract hostname from TTS_PROXY_ORIGIN for Host header
+    TTS_HOST=$(echo "$TTS_PROXY_ORIGIN" | sed 's|https\?://||' | sed 's|/.*||')
+    
+    # Create TTS configuration block (OpenAI-compatible endpoint)
     cat > /tmp/tts_config.conf << EOF
-    # --- STREAMING TTS: forward /tts/* to the TTS microservice ---
-    location /tts/ {
-        # MUST be a full URL and include a trailing slash
-        proxy_pass              ${TTS_PROXY_ORIGIN}/;
+    # ===============================
+    #  Open WebUI -> Aurora TTS proxy
+    #  (OpenAI-compatible endpoint)
+    # ===============================
+    location = /api/v1/audio/speech {
+      # Upstream service (no trailing slash in env)
+      # TTS_PROXY_ORIGIN: e.g. https://aurora-tts-service.onrender.com
+      proxy_pass                  ${TTS_PROXY_ORIGIN}/v1/audio/speech;
 
-        proxy_http_version      1.1;
+      # --- HTTPS upstream fixes (SNI/Host) ---
+      proxy_ssl_server_name       on;         # enable SNI for TLS
+      proxy_set_header            Host ${TTS_HOST};  # send upstream host, not client host
 
-        # Ensure upstream Host header matches the Render TTS service hostname
-        proxy_set_header        Host \$proxy_host;
+      # --- Auth to your TTS service ---
+      proxy_set_header            X-TTS-Token "${TTS_SHARED_TOKEN}";
 
-        # Ensure TLS SNI uses the upstream host
-        proxy_ssl_server_name   on;
+      # --- Streaming (CRITICAL) ---
+      proxy_http_version          1.1;
+      proxy_buffering             off;
+      proxy_request_buffering     off;
+      proxy_read_timeout          300s;
+      add_header                  X-Accel-Buffering no;
 
-        # Simple auth passthrough (quotes handle empty var safely)
-        proxy_set_header        X-TTS-Token "${TTS_SHARED_TOKEN}";
+      # --- Forwarded headers ---
+      proxy_set_header            X-Real-IP        \$remote_addr;
+      proxy_set_header            X-Forwarded-For  \$proxy_add_x_forwarded_for;
+      proxy_set_header            X-Forwarded-Proto https;
+      proxy_set_header            X-Forwarded-Port  443;
+      proxy_set_header            X-Forwarded-Host  \$host;
 
-        # Streaming essentials (no buffering)
-        proxy_buffering         off;
-        proxy_request_buffering off;
-        proxy_read_timeout      300s;
-        add_header              X-Accel-Buffering no;
-
-        # Don't gzip audio
-        gzip                    off;
+      proxy_redirect              off;
+      absolute_redirect           off;
     }
 EOF
     
@@ -79,9 +92,11 @@ fi
 envsubst '${UPSTREAM_URL} ${TTS_PROXY_ORIGIN} ${TTS_SHARED_TOKEN}' < /tmp/nginx.conf.temp > /etc/nginx/nginx.conf
 rm -f /tmp/nginx.conf.temp
 
-# Show generated config for debugging
-echo "=== Generated nginx.conf ==="
-cat /etc/nginx/nginx.conf
+# Show generated config for debugging (sanitized - no tokens)
+echo "=== Generated nginx.conf (sanitized) ==="
+# Remove sensitive tokens before logging
+sed 's/X-TTS-Token [^;]*/X-TTS-Token [REDACTED]/g' /etc/nginx/nginx.conf | head -50
+echo "... (config truncated for security) ..."
 echo "=== End nginx.conf ==="
 
 # Start nginx in foreground

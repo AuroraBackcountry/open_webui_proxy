@@ -62,40 +62,8 @@ http {
     location = /static/splash.png   { alias /usr/share/nginx/html/icons/icon-512.png; add_header Content-Type image/png; }
     location = /static/splash-dark.png { alias /usr/share/nginx/html/icons/icon-512.png; add_header Content-Type image/png; }
 
-    # ===============================
-    #  Open WebUI -> Aurora TTS proxy
-    #  (OpenAI-compatible endpoint)
-    # ===============================
-    location = /api/v1/audio/speech {
-      # Upstream service (no trailing slash in env)
-      # TTS_PROXY_ORIGIN: e.g. https://aurora-tts-service.onrender.com
-      proxy_pass                  ${TTS_PROXY_ORIGIN}/v1/audio/speech;
-
-      # --- HTTPS upstream fixes (SNI/Host) ---
-      proxy_ssl_server_name       on;         # enable SNI for TLS
-      # proxy_ssl_name            aurora-tts-service.onrender.com; # optional explicit SNI if needed
-      proxy_set_header            Host $proxy_host;  # send upstream host, not client host
-
-      # --- Auth to your TTS service ---
-      proxy_set_header            X-TTS-Token ${TTS_SHARED_TOKEN};
-
-      # --- Streaming (CRITICAL) ---
-      proxy_http_version          1.1;
-      proxy_buffering             off;
-      proxy_request_buffering     off;
-      proxy_read_timeout          300s;
-      add_header                  X-Accel-Buffering no;
-
-      # --- Forwarded headers ---
-      proxy_set_header            X-Real-IP        $remote_addr;
-      proxy_set_header            X-Forwarded-For  $proxy_add_x_forwarded_for;
-      proxy_set_header            X-Forwarded-Proto https;
-      proxy_set_header            X-Forwarded-Port  443;
-      proxy_set_header            X-Forwarded-Host  $host;
-
-      proxy_redirect              off;
-      absolute_redirect           off;
-    }
+    # --- TTS proxy configuration will be conditionally inserted here ---
+    # (See entrypoint.sh for conditional TTS proxy setup)
 
     # --- Proxy everything else to the private Open WebUI ---
     # UPSTREAM_URL will be env-injected (e.g., http://webui-xxxx:10000)
@@ -106,8 +74,8 @@ http {
       proxy_set_header Accept-Encoding "";
       
       # Enable sub_filter for HTML content injection
+      # Note: sub_filter applies to text/html by default, no need to specify types
       sub_filter_once off;
-      sub_filter_types text/html;
       sub_filter '</head>' '<link rel="stylesheet" href="/theme.css"><script src="/guideops-branding.js" defer></script></head>';
       
       # CRITICAL: Disable buffering so sub_filter works on streamed content
