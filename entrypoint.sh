@@ -16,7 +16,8 @@ PORT=$(echo $UPSTREAM_URL | sed 's|.*:||')
 echo "Attempting to resolve: $HOSTNAME"
 # Try different DNS resolution methods
 getent hosts $HOSTNAME || echo "getent hosts failed"
-ping -c 1 $HOSTNAME || echo "ping failed"
+# Note: ping may fail due to permissions, but DNS resolution via getent is what matters
+ping -c 1 $HOSTNAME 2>/dev/null || true
 
 # Get the resolved IP address
 RESOLVED_IP=$(getent hosts $HOSTNAME | awk '{print $1}' | head -1)
@@ -44,7 +45,8 @@ if [ -n "$TTS_PROXY_ORIGIN" ]; then
     TTS_HOST=$(echo "$TTS_PROXY_ORIGIN" | sed 's|https\?://||' | sed 's|/.*||')
     
     # Create TTS configuration block (OpenAI-compatible endpoint)
-    cat > /tmp/tts_config.conf << EOF
+    # Use quoted heredoc to preserve variables, then substitute with sed
+    cat > /tmp/tts_config.conf << 'TTS_EOF'
     # ===============================
     #  Open WebUI -> Aurora TTS proxy
     #  (OpenAI-compatible endpoint)
@@ -52,14 +54,14 @@ if [ -n "$TTS_PROXY_ORIGIN" ]; then
     location = /api/v1/audio/speech {
       # Upstream service (no trailing slash in env)
       # TTS_PROXY_ORIGIN: e.g. https://aurora-tts-service.onrender.com
-      proxy_pass                  ${TTS_PROXY_ORIGIN}/v1/audio/speech;
+      proxy_pass                  __TTS_PROXY_ORIGIN__/v1/audio/speech;
 
       # --- HTTPS upstream fixes (SNI/Host) ---
       proxy_ssl_server_name       on;         # enable SNI for TLS
-      proxy_set_header            Host ${TTS_HOST};  # send upstream host, not client host
+      proxy_set_header            Host __TTS_HOST__;  # send upstream host, not client host
 
       # --- Auth to your TTS service ---
-      proxy_set_header            X-TTS-Token "${TTS_SHARED_TOKEN}";
+      proxy_set_header            X-TTS-Token "__TTS_SHARED_TOKEN__";
 
       # --- Streaming (CRITICAL) ---
       proxy_http_version          1.1;
@@ -69,16 +71,22 @@ if [ -n "$TTS_PROXY_ORIGIN" ]; then
       add_header                  X-Accel-Buffering no;
 
       # --- Forwarded headers ---
-      proxy_set_header            X-Real-IP        \$remote_addr;
-      proxy_set_header            X-Forwarded-For  \$proxy_add_x_forwarded_for;
+      proxy_set_header            X-Real-IP        $remote_addr;
+      proxy_set_header            X-Forwarded-For  $proxy_add_x_forwarded_for;
       proxy_set_header            X-Forwarded-Proto https;
       proxy_set_header            X-Forwarded-Port  443;
-      proxy_set_header            X-Forwarded-Host  \$host;
+      proxy_set_header            X-Forwarded-Host  $host;
 
       proxy_redirect              off;
       absolute_redirect           off;
     }
-EOF
+TTS_EOF
+    
+    # Substitute TTS variables using sed (more reliable than envsubst for this)
+    # BusyBox sed supports -i without extension for in-place editing
+    sed -i "s|__TTS_HOST__|${TTS_HOST}|g" /tmp/tts_config.conf
+    sed -i "s|__TTS_PROXY_ORIGIN__|${TTS_PROXY_ORIGIN}|g" /tmp/tts_config.conf
+    sed -i "s|__TTS_SHARED_TOKEN__|${TTS_SHARED_TOKEN}|g" /tmp/tts_config.conf
     
     # Insert TTS config after the comment line
     sed '/# --- TTS proxy configuration will be conditionally inserted here ---/r /tmp/tts_config.conf' /tmp/nginx.conf.temp > /tmp/nginx.conf.with_tts
@@ -89,7 +97,8 @@ else
 fi
 
 # Substitute remaining env vars and create final config
-envsubst '${UPSTREAM_URL} ${TTS_PROXY_ORIGIN} ${TTS_SHARED_TOKEN}' < /tmp/nginx.conf.temp > /etc/nginx/nginx.conf
+# Note: TTS variables are already substituted in tts_config.conf, so only UPSTREAM_URL needs substitution
+envsubst '${UPSTREAM_URL}' < /tmp/nginx.conf.temp > /etc/nginx/nginx.conf
 rm -f /tmp/nginx.conf.temp
 
 # Show generated config for debugging (sanitized - no tokens)

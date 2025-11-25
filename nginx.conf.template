@@ -6,8 +6,9 @@ http {
   default_type application/octet-stream;
 
   # Logs (use 'warn' in production, 'debug' for troubleshooting)
-  error_log  /var/log/nginx/error.log warn;
-  access_log /var/log/nginx/access.log;
+  # Log to stdout/stderr for container-friendly logging (captured by Docker/Render)
+  error_log  /dev/stderr warn;
+  access_log /dev/stdout;
 
   # Proxy buffer optimizations (reduces temp file warnings for large assets)
   proxy_buffer_size 16k;
