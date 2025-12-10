@@ -7,20 +7,43 @@ echo "UPSTREAM_URL: $UPSTREAM_URL"
 echo "Hostname: $(hostname)"
 echo "DNS resolvers:"
 cat /etc/resolv.conf
-echo "=== Testing DNS resolution ==="
-# Extract hostname from UPSTREAM_URL for testing
+echo "=== Resolving upstream hostname ==="
+# Extract hostname from UPSTREAM_URL
 HOSTNAME=$(echo $UPSTREAM_URL | sed 's|http://||' | sed 's|https://||' | sed 's|:.*||')
 PORT=$(echo $UPSTREAM_URL | sed 's|.*:||')
-echo "Testing resolution of: $HOSTNAME"
-# Test DNS resolution but keep the original hostname
-# On Render, using hostnames is more reliable than IPs due to dynamic IPs
-getent hosts $HOSTNAME || echo "getent hosts failed (may be normal)"
-# Note: ping may fail due to permissions, but DNS resolution via getent is what matters
-ping -c 1 $HOSTNAME 2>/dev/null || true
+echo "Resolving hostname: $HOSTNAME"
 
-# Keep the original UPSTREAM_URL with hostname - nginx will resolve it at runtime
-# This is more reliable on Render where IPs can change
-echo "Using UPSTREAM_URL as-is (with hostname): $UPSTREAM_URL"
+# Try multiple resolution methods with retries
+RESOLVED_IP=""
+for i in 1 2 3 4 5; do
+    echo "Attempt $i: Resolving $HOSTNAME..."
+    # Try getent first (uses /etc/hosts and DNS)
+    RESOLVED_IP=$(getent hosts $HOSTNAME 2>/dev/null | awk '{print $1}' | head -1)
+    if [ -n "$RESOLVED_IP" ]; then
+        echo "Resolved $HOSTNAME to IP: $RESOLVED_IP"
+        break
+    fi
+    # Try nslookup as fallback
+    RESOLVED_IP=$(nslookup $HOSTNAME 2>/dev/null | grep -A1 "Name:" | grep "Address:" | awk '{print $2}' | head -1)
+    if [ -n "$RESOLVED_IP" ]; then
+        echo "Resolved $HOSTNAME to IP via nslookup: $RESOLVED_IP"
+        break
+    fi
+    if [ $i -lt 5 ]; then
+        echo "Resolution failed, retrying in 2 seconds..."
+        sleep 2
+    fi
+done
+
+if [ -n "$RESOLVED_IP" ]; then
+    # Use resolved IP - nginx doesn't handle DNS resolution well with variables
+    export UPSTREAM_URL="http://$RESOLVED_IP:$PORT"
+    echo "Updated UPSTREAM_URL to use IP: $UPSTREAM_URL"
+else
+    echo "WARNING: Failed to resolve $HOSTNAME after 5 attempts"
+    echo "Will use hostname directly - this may cause DNS resolution issues"
+    echo "Using UPSTREAM_URL as-is: $UPSTREAM_URL"
+fi
 echo "=== End Debug Info ==="
 
 # Generate nginx.conf with conditional TTS configuration
