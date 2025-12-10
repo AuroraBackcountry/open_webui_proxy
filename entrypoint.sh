@@ -9,26 +9,18 @@ echo "DNS resolvers:"
 cat /etc/resolv.conf
 echo "=== Testing DNS resolution ==="
 # Extract hostname from UPSTREAM_URL for testing
-# Note: On Render, internal service discovery can be unreliable, so we resolve
-# hostnames to IPs at startup to avoid nginx resolver issues
-HOSTNAME=$(echo $UPSTREAM_URL | sed 's|http://||' | sed 's|:.*||')
+HOSTNAME=$(echo $UPSTREAM_URL | sed 's|http://||' | sed 's|https://||' | sed 's|:.*||')
 PORT=$(echo $UPSTREAM_URL | sed 's|.*:||')
-echo "Attempting to resolve: $HOSTNAME"
-# Try different DNS resolution methods
-getent hosts $HOSTNAME || echo "getent hosts failed"
+echo "Testing resolution of: $HOSTNAME"
+# Test DNS resolution but keep the original hostname
+# On Render, using hostnames is more reliable than IPs due to dynamic IPs
+getent hosts $HOSTNAME || echo "getent hosts failed (may be normal)"
 # Note: ping may fail due to permissions, but DNS resolution via getent is what matters
 ping -c 1 $HOSTNAME 2>/dev/null || true
 
-# Get the resolved IP address
-RESOLVED_IP=$(getent hosts $HOSTNAME | awk '{print $1}' | head -1)
-if [ -n "$RESOLVED_IP" ]; then
-    echo "Resolved $HOSTNAME to IP: $RESOLVED_IP"
-    # Use the resolved IP instead of hostname for more reliable proxying
-    export UPSTREAM_URL="http://$RESOLVED_IP:$PORT"
-    echo "Updated UPSTREAM_URL to: $UPSTREAM_URL"
-else
-    echo "Failed to resolve $HOSTNAME, keeping original URL"
-fi
+# Keep the original UPSTREAM_URL with hostname - nginx will resolve it at runtime
+# This is more reliable on Render where IPs can change
+echo "Using UPSTREAM_URL as-is (with hostname): $UPSTREAM_URL"
 echo "=== End Debug Info ==="
 
 # Generate nginx.conf with conditional TTS configuration
